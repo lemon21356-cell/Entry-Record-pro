@@ -1,12 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "엔트리 레코더 최종 수정판",
-  "version": "1.4",
+  "name": "엔트리 레코더 최종본",
+  "version": "1.5",
   "permissions": ["storage", "activeTab", "downloads"],
   "action": { "default_popup": "popup.html" },
-  "background": {
-    "service_worker": "background.js"
-  },
+  "background": { "service_worker": "background.js" },
   "content_scripts": [
     {
       "matches": ["https://playentry.org/*"],
