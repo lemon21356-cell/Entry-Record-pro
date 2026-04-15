@@ -1,21 +1,17 @@
 let mediaRecorder;
 let recordedChunks = [];
-let canRecord = false;
 
-// 1. 녹화 버튼 생성
+// 1. 버튼 생성 및 초기화
 const recordBtn = document.createElement('img');
-chrome.storage.local.get(['isConfigured'], (res) => { canRecord = res.isConfigured || false; });
-recordBtn.src = chrome.runtime.getURL('start.png'); 
-recordBtn.style.cssText = "position:fixed; bottom:20px; right:20px; z-index:9999; cursor:pointer; width:60px; height:60px;";
+recordBtn.src = chrome.runtime.getURL('start.png');
+recordBtn.style.cssText = "position:fixed; bottom:30px; right:30px; z-index:99999; cursor:pointer; width:70px; height:70px;";
 document.body.appendChild(recordBtn);
 
-// 2. 메시지 수신
-chrome.runtime.onMessage.addListener((msg) => { if (msg.action === "path_ready") canRecord = true; });
-
-// 3. 버튼 클릭 이벤트
+// 2. 버튼 클릭 이벤트
 recordBtn.onclick = async () => {
-    if (!canRecord) {
-        alert("⚠️ 'Entryrecord' 폴더 위치가 정해져 있지 않습니다! 확장 프로그램 아이콘을 눌러 폴더를 지정해주세요.");
+    const res = await chrome.storage.local.get(['isConfigured']);
+    if (!res.isConfigured) {
+        alert("⚠️ 'Entryrecord' 폴더 위치가 지정되지 않았습니다!\n확장 프로그램 팝업에서 폴더를 먼저 연결해주세요.");
         return;
     }
 
@@ -27,8 +23,8 @@ recordBtn.onclick = async () => {
 };
 
 async function startRecording() {
-    const canvas = document.querySelector('canvas'); 
-    if (!canvas) return alert("엔트리 화면을 찾을 수 없습니다.");
+    const canvas = document.querySelector('.entryCanvasElement') || document.querySelector('canvas');
+    if (!canvas) return alert("엔트리 실행 화면을 찾을 수 없습니다.");
 
     const stream = canvas.captureStream(30);
     mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
@@ -36,10 +32,10 @@ async function startRecording() {
 
     mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
 
-    mediaRecorder.onstop = () => {
+    mediaRecorder.onstop = async () => {
         recordBtn.src = chrome.runtime.getURL('start.png');
-        const fileName = prompt("저장할 파일 이름을 입력해주세요:", "entry_video");
-        if (!fileName) return; // 취소 시 저장 안 함
+        const fileName = prompt("저장할 파일 이름을 입력하세요:", "my_entry_project");
+        if (!fileName) return;
 
         const blob = new Blob(recordedChunks, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
@@ -47,6 +43,7 @@ async function startRecording() {
         a.href = url;
         a.download = `${fileName}.webm`;
         a.click();
+        URL.revokeObjectURL(url);
     };
 
     mediaRecorder.start();
