@@ -8,10 +8,8 @@ document.body.appendChild(recordBtn);
 
 recordBtn.onclick = async () => {
     const res = await chrome.storage.local.get(['isConfigured']);
-    if (!res.isConfigured) {
-        alert("⚠️ 'Entryrecord' 폴더 연결이 필요합니다! 확장프로그램 아이콘을 눌러주세요.");
-        return;
-    }
+    if (!res.isConfigured) return alert("먼저 폴더를 연결해주세요!");
+    
     if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
     } else {
@@ -21,33 +19,35 @@ recordBtn.onclick = async () => {
 
 async function startRecording() {
     const canvas = document.querySelector('.entryCanvasElement') || document.querySelector('canvas');
-    if (!canvas) return alert("엔트리 화면을 찾을 수 없습니다.");
-
     const stream = canvas.captureStream(30);
     
-    // 가장 호환성이 좋은 코덱 설정
-    const options = { mimeType: 'video/webm; codecs=vp8' }; 
+    // 재생 오류 해결을 위한 코덱 설정 (H.264 시도, 안되면 기본값)
+    let options = { mimeType: 'video/webm; codecs=h264' };
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options = { mimeType: 'video/webm; codecs=vp8' };
+    }
+    
     mediaRecorder = new MediaRecorder(stream, options);
     recordedChunks = [];
+    mediaRecorder.ondataavailable = (e) => recordedChunks.push(e.data);
 
-    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
-
-    mediaRecorder.onstop = () => {
+    mediaRecorder.onstop = async () => {
         recordBtn.src = chrome.runtime.getURL('start.png');
-        const fileName = prompt("저장할 파일 이름을 입력하세요:", "entry_video");
+        const fileName = prompt("파일 이름을 입력하세요:", "entry_video");
         if (!fileName) return;
 
-        const blob = new Blob(recordedChunks, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
+        const blob = new Blob(recordedChunks, { type: 'video/mp4' });
+        const reader = new FileReader();
         
-        const a = document.createElement('a');
-        a.href = url;
-        // 팁: 재생이 안 된다면 확장자를 .webm으로 먼저 시도해보세요. 
-        // 윈도우 기본 미디어 플레이어는 .webm을 지원하지 않을 수 있으니 '크롬'으로 열거나 'VLC 플레이어'를 추천합니다.
-        a.download = `${fileName}.mp4`; 
-        a.click();
-        
-        setTimeout(() => URL.revokeObjectURL(url), 100);
+        // 파일을 데이터 URL로 변환하여 background로 전달 (폴더 강제 지정 위함)
+        reader.onloadend = () => {
+            chrome.runtime.sendMessage({
+                action: "download_video",
+                url: reader.result,
+                filename: fileName + ".mp4"
+            });
+        };
+        reader.readAsDataURL(blob);
     };
 
     mediaRecorder.start();
