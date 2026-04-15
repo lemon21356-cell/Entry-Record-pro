@@ -13,41 +13,60 @@ recordBtn.onclick = async () => {
     if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
     } else {
-        startRecording();
+        startFullRecording();
     }
 };
 
-async function startRecording() {
-    const canvas = document.querySelector('.entryCanvasElement') || document.querySelector('canvas');
-    const stream = canvas.captureStream(30);
-    
-    // 재생 호환성을 위한 최적의 코덱 (H.264가 지원되면 사용, 아니면 범용 코덱)
-    let options = { mimeType: 'video/webm; codecs=h264' };
-    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-        options = { mimeType: 'video/webm; codecs=vp8' };
-    }
-    
-    mediaRecorder = new MediaRecorder(stream, options);
-    recordedChunks = [];
-    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+async function startFullRecording() {
+    try {
+        // 1. 전체 화면(탭) 공유 요청 (오디오 포함)
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+            video: { cursor: "always" },
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                sampleRate: 44100
+            }
+        });
 
-    mediaRecorder.onstop = () => {
-        recordBtn.src = chrome.runtime.getURL('start.png');
-        const fileName = prompt("저장할 파일 이름을 입력하세요:", "entry_video");
-        if (!fileName) return;
+        // 2. 코덱 설정 (H.264 지원 확인)
+        let options = { mimeType: 'video/webm; codecs=h264' };
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+            options = { mimeType: 'video/webm; codecs=vp8' };
+        }
 
-        const blob = new Blob(recordedChunks, { type: 'video/mp4' });
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            chrome.runtime.sendMessage({
-                action: "download_request",
-                url: reader.result,
-                filename: fileName + ".mp4"
-            });
+        mediaRecorder = new MediaRecorder(stream, options);
+        recordedChunks = [];
+
+        mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) recordedChunks.push(e.data);
         };
-        reader.readAsDataURL(blob);
-    };
 
-    mediaRecorder.start();
-    recordBtn.src = chrome.runtime.getURL('stop.png');
+        mediaRecorder.onstop = () => {
+            // 녹화 중지 시 스트림의 모든 트랙 중지
+            stream.getTracks().forEach(track => track.stop());
+            recordBtn.src = chrome.runtime.getURL('start.png');
+
+            const fileName = prompt("파일 이름을 입력하세요:", "entry_full_record");
+            if (!fileName) return;
+
+            const blob = new Blob(recordedChunks, { type: 'video/mp4' });
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                chrome.runtime.sendMessage({
+                    action: "download_request",
+                    url: reader.result,
+                    filename: fileName + ".mp4"
+                });
+            };
+            reader.readAsDataURL(blob);
+        };
+
+        mediaRecorder.start();
+        recordBtn.src = chrome.runtime.getURL('stop.png');
+
+    } catch (err) {
+        console.error("녹화 시작 실패:", err);
+        alert("녹화 대상을 선택해야 합니다.");
+    }
 }
