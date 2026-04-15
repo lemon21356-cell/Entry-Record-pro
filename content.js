@@ -8,28 +8,31 @@ document.body.appendChild(recordBtn);
 
 recordBtn.onclick = async () => {
     const res = await chrome.storage.local.get(['isConfigured']);
-    if (!res.isConfigured) return alert("먼저 확장프로그램 팝업에서 폴더를 연결해주세요!");
+    if (!res.isConfigured) return alert("먼저 폴더를 연결해주세요!");
     
     if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
     } else {
-        startFullRecording();
+        startUniversalRecording();
     }
 };
 
-async function startFullRecording() {
+async function startUniversalRecording() {
     try {
-        // 1. 전체 화면(탭) 공유 요청 (오디오 포함)
+        // 모든 창, 전체 화면, 탭 중 선택 가능하도록 요청
         const stream = await navigator.mediaDevices.getDisplayMedia({
-            video: { cursor: "always" },
+            video: { 
+                displaySurface: "monitor", // 전체 화면 우선 제안
+                cursor: "always" 
+            },
             audio: {
                 echoCancellation: true,
-                noiseSuppression: true,
-                sampleRate: 44100
+                noiseSuppression: false, // 소리 품질을 위해 억제 완화
+                autoGainControl: true
             }
         });
 
-        // 2. 코덱 설정 (H.264 지원 확인)
+        // 윈도우 미디어 플레이어 호환을 위한 코덱 설정
         let options = { mimeType: 'video/webm; codecs=h264' };
         if (!MediaRecorder.isTypeSupported(options.mimeType)) {
             options = { mimeType: 'video/webm; codecs=vp8' };
@@ -43,11 +46,10 @@ async function startFullRecording() {
         };
 
         mediaRecorder.onstop = () => {
-            // 녹화 중지 시 스트림의 모든 트랙 중지
             stream.getTracks().forEach(track => track.stop());
             recordBtn.src = chrome.runtime.getURL('start.png');
 
-            const fileName = prompt("파일 이름을 입력하세요:", "entry_full_record");
+            const fileName = prompt("파일 이름을 입력하세요:", "google_record");
             if (!fileName) return;
 
             const blob = new Blob(recordedChunks, { type: 'video/mp4' });
@@ -66,7 +68,6 @@ async function startFullRecording() {
         recordBtn.src = chrome.runtime.getURL('stop.png');
 
     } catch (err) {
-        console.error("녹화 시작 실패:", err);
-        alert("녹화 대상을 선택해야 합니다.");
+        console.error("녹화 취소 또는 에러:", err);
     }
 }
