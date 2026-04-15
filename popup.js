@@ -1,38 +1,40 @@
-// popup.js (개선된 버전)
-const setFolderBtn = document.getElementById('setFolder');
-const statusDiv = document.getElementById('pathStatus');
-
-// 팝업이 켜질 때 상태 확인
-chrome.storage.local.get(['isConfigured'], (data) => {
-  if (data.isConfigured) {
-    statusDiv.innerText = "✅ Entryrecord 연결 완료";
-    statusDiv.style.color = "green";
-  }
+document.addEventListener('DOMContentLoaded', async () => {
+  const data = await chrome.storage.local.get(['isConfigured']);
+  if (data.isConfigured) updateUI(true);
 });
 
-setFolderBtn.addEventListener('click', async () => {
+document.getElementById('setFolder').addEventListener('click', async () => {
   try {
-    // 1. 폴더 선택창 호출 (사용자 직접 클릭 시에만 작동)
     const dirHandle = await window.showDirectoryPicker();
     
-    // 2. 이름 검증
     if (dirHandle.name !== "Entryrecord") {
       alert("폴더 이름이 'Entryrecord'가 아닙니다!");
       return;
     }
 
-    // 3. 상태 저장 및 UI 업데이트
     await chrome.storage.local.set({ isConfigured: true });
-    statusDiv.innerText = "✅ Entryrecord 연결 완료";
-    statusDiv.style.color = "green";
+    updateUI(true);
     
-    // 4. 현재 열려있는 엔트리 탭에 알림 전송
+    // 메시지 전송 로직 강화
     const tabs = await chrome.tabs.query({active: true, currentWindow: true});
-    if (tabs[0]) {
-      chrome.tabs.sendMessage(tabs[0].id, { action: "path_ready" });
+    
+    if (tabs[0] && tabs[0].url.includes("playentry.org")) {
+      chrome.tabs.sendMessage(tabs[0].id, { action: "path_ready" }, (response) => {
+        // 연결 에러가 발생해도 무시 (콘솔 에러 방지)
+        if (chrome.runtime.lastError) {
+          console.log("엔트리 페이지가 아직 준비되지 않았습니다. 새로고침 후 시도하세요.");
+        }
+      });
     }
   } catch (err) {
-    // 사용자가 창을 그냥 닫았을 때 발생하는 오류 방지
-    console.error("폴더 선택 중 오류 발생:", err);
+    console.log("사용자가 폴더 선택을 취소했거나 오류가 발생했습니다.");
   }
 });
+
+function updateUI(isOk) {
+  const status = document.getElementById('pathStatus');
+  if (isOk) {
+    status.innerText = "✅ Entryrecord 연결 완료";
+    status.style.color = "green";
+  }
+}
