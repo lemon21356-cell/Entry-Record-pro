@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "엔트리 레코더 Pro",
+  "version": "1.0",
+  "permissions": ["storage", "activeTab", "downloads"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://playentry.org/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["start.png", "stop.png"],
+      "matches": ["https://playentry.org/*"]
+    }
+  ]
+}
