@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "엔트리 레코더 최종본",
-  "version": "1.5",
+  "name": "엔트리 전체화면 레코더 (소리포함)",
+  "version": "1.6",
   "permissions": ["storage", "activeTab", "downloads"],
   "action": { "default_popup": "popup.html" },
   "background": { "service_worker": "background.js" },
