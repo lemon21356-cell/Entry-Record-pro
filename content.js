@@ -21,30 +21,27 @@ async function startRecording() {
     const canvas = document.querySelector('.entryCanvasElement') || document.querySelector('canvas');
     const stream = canvas.captureStream(30);
     
-    // 재생 오류 해결을 위한 코덱 설정 (H.264 시도, 안되면 기본값)
-    let options = { mimeType: 'video/webm; codecs=h264' };
-    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-        options = { mimeType: 'video/webm; codecs=vp8' };
-    }
-    
+    // 윈도우 미디어 플레이어 호환성을 위한 코덱 설정
+    const options = { mimeType: 'video/webm; codecs=vp8' };
     mediaRecorder = new MediaRecorder(stream, options);
     recordedChunks = [];
-    mediaRecorder.ondataavailable = (e) => recordedChunks.push(e.data);
+    
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
 
-    mediaRecorder.onstop = async () => {
+    mediaRecorder.onstop = () => {
         recordBtn.src = chrome.runtime.getURL('start.png');
         const fileName = prompt("파일 이름을 입력하세요:", "entry_video");
         if (!fileName) return;
 
-        const blob = new Blob(recordedChunks, { type: 'video/mp4' });
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
         const reader = new FileReader();
         
-        // 파일을 데이터 URL로 변환하여 background로 전달 (폴더 강제 지정 위함)
         reader.onloadend = () => {
+            // background.js로 데이터 전송
             chrome.runtime.sendMessage({
-                action: "download_video",
+                action: "download_request",
                 url: reader.result,
-                filename: fileName + ".mp4"
+                filename: fileName + ".mp4" // 확장자만 mp4로 표시
             });
         };
         reader.readAsDataURL(blob);
