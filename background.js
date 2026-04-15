@@ -2,11 +2,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "download_request") {
         chrome.downloads.download({
             url: request.url,
-            filename: request.filename, // 크롬 설정에서 지정한 폴더로 바로 저장됨
+            // 크롬 다운로드 폴더 내의 'Entryrecord' 폴더명을 경로에 추가
+            filename: "Entryrecord/" + request.filename, 
             saveAs: false
-        }, (downloadId) => {
+        }, (id) => {
             if (chrome.runtime.lastError) {
-                console.error("다운로드 실패:", chrome.runtime.lastError.message);
+                // 만약 사용자가 Entryrecord 폴더를 안 만들었을 경우를 대비해 일반 다운로드 시도
+                chrome.downloads.download({
+                    url: request.url,
+                    filename: request.filename,
+                    saveAs: false
+                });
             }
         });
     }
